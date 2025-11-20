@@ -55,7 +55,7 @@ def split_tests_into_subgroups(tests: List[str], threshold: int) -> Dict[str, in
 
 
 def sanitize_folder_name(testgroup_name: str) -> str:
-    short_name = testgroup_name.replace('dEQP-VK.ray_tracing_pipeline.acceleration_structures.', '')
+    short_name = testgroup_name.replace('dEQP-VK.', '')
     return short_name.replace('.', '_')
 
 
@@ -116,11 +116,47 @@ echo "Tests to run: {tests_to_run}/{test_count}"
 echo ""
 echo "Launching B2 node..."
 phd run -R rhel8 -I bash -c '
+    WORKSPACE_DIR="{workfolder}"
+
+    LD_LIBRARY_PATH=${{WORKSPACE_DIR}}/csim/cmake_out/build/lib:${{LD_LIBRARY_PATH}}
+    LD_LIBRARY_PATH=${{WORKSPACE_DIR}}/Vulkan-Loader/build/loader:${{LD_LIBRARY_PATH}}
+    LD_LIBRARY_PATH=${{WORKSPACE_DIR}}/sumd/out/linux-x64-release:${{LD_LIBRARY_PATH}}
+    LD_LIBRARY_PATH=${{WORKSPACE_DIR}}/sdrm_layers/out/linux/debug/x64:${{LD_LIBRARY_PATH}}
+    LD_LIBRARY_PATH=${{WORKSPACE_DIR}}/dtif/out/Linux/Debug/x64:${{LD_LIBRARY_PATH}}
+    LD_LIBRARY_PATH=/tool/pkg/gcc-11.1.0-1/lib64:${{LD_LIBRARY_PATH}}
+    LD_LIBRARY_PATH=/tool/pkg/boost-1.71.0-gcc-7.3.0-1-1/lib:${{LD_LIBRARY_PATH}}
+    LD_LIBRARY_PATH=/home/apps/imagemagick_org/imagemagick/6.9.1-8/lib:${{LD_LIBRARY_PATH}}
+    LD_LIBRARY_PATH=/usr/local/lib:${{LD_LIBRARY_PATH}}
+
+    LD_LIBRARY_PATH_64=${{WORKSPACE_DIR}}/csim/cmake_out/build/lib:${{LD_LIBRARY_PATH_64}}
+    LD_LIBRARY_PATH_64=${{WORKSPACE_DIR}}/Vulkan-Loader/build/loader:${{LD_LIBRARY_PATH_64}}
+    LD_LIBRARY_PATH_64=${{WORKSPACE_DIR}}/sumd/out/linux-x64-release:${{LD_LIBRARY_PATH_64}}
+    LD_LIBRARY_PATH_64=${{WORKSPACE_DIR}}/sdrm_layers/out/linux/debug/x64:${{LD_LIBRARY_PATH_64}}
+    LD_LIBRARY_PATH_64=${{WORKSPACE_DIR}}/dtif/out/Linux/Debug/x64:${{LD_LIBRARY_PATH_64}}
+    LD_LIBRARY_PATH_64=/tool/pkg/gcc-11.1.0-1/lib64:${{LD_LIBRARY_PATH_64}}
+    LD_LIBRARY_PATH_64=/tool/pkg/boost-1.71.0-gcc-7.3.0-1-1/lib:${{LD_LIBRARY_PATH_64}}
+    LD_LIBRARY_PATH_64=/home/apps/imagemagick_org/imagemagick/6.9.1-8/lib:${{LD_LIBRARY_PATH_64}}
+    LD_LIBRARY_PATH_64=/usr/local/lib:${{LD_LIBRARY_PATH_64}}
+
+    VK_DRIVER_FILES=${{WORKSPACE_DIR}}/sumd/out/linux-x64-release
+    PAL_DTIF_ENABLED=1
+    OUT_HOME=${{WORKSPACE_DIR}}/csim/cmake_out/packaging_flow/out/linux_4.18.0_64.VCS
+    DJ_CONTEXT=mobile
+    LIBDRM_LOADER_USE_DTIF=1
+
+    export LD_LIBRARY_PATH
+    export LD_LIBRARY_PATH_64
+    export VK_DRIVER_FILES
+    export PAL_DTIF_ENABLED
+    export OUT_HOME
+    export DJ_CONTEXT
+    export LIBDRM_LOADER_USE_DTIF
+
     echo "Creating run folder..."
     mkdir -p {run_folder}
     cd {run_folder}
     echo "Running tests in $(pwd)..."
-    {workfolder}/VK-GL-CTS/build/external/vulkancts/modules/vulkan/deqp-vk --deqp-case={testgroup_name}* --deqp-log-filename=./result.qpa > stdout_stderr.log 2>&1
+    ${{WORKSPACE_DIR}}/VK-GL-CTS/build/external/vulkancts/modules/vulkan/deqp-vk --deqp-case={testgroup_name}* --deqp-log-filename=./result.qpa > stdout_stderr.log 2>&1
     echo ""
     echo "Test execution completed!"
     echo "Results saved in: {run_folder}"
