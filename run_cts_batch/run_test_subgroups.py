@@ -98,6 +98,9 @@ def launch_terminals(subgroups: Dict[str, int], workfolder: str, max_tests_per_g
 
     print()
 
+    script_dir = "/tmp/vkcts_scripts"
+    os.makedirs(script_dir, exist_ok=True)
+
     for idx, (testgroup_name, test_count) in enumerate(filtered_subgroups, 1):
         folder_name = sanitize_folder_name(testgroup_name)
         run_folder = f"{workfolder}/run/vkcts_{folder_name}"
@@ -107,34 +110,40 @@ def launch_terminals(subgroups: Dict[str, int], workfolder: str, max_tests_per_g
 
         print(f"Launching terminal {actual_idx}/{total_subgroups}: {testgroup_name} ({tests_to_run}/{test_count} tests)")
 
-        bash_script = f"""
-echo "Running test subgroup: {testgroup_name}";
-echo "Tests to run: {tests_to_run}/{test_count}";
-echo "";
-echo "Launching B2 node...";
+        bash_script = f"""#!/bin/bash
+echo "Running test subgroup: {testgroup_name}"
+echo "Tests to run: {tests_to_run}/{test_count}"
+echo ""
+echo "Launching B2 node..."
 phd run -R rhel8 -I bash -c '
-    echo "Creating run folder...";
-    mkdir -p {run_folder};
-    cd {run_folder};
-    echo "Running tests in $(pwd)...";
-    {workfolder}/VK-GL-CTS/build/external/vulkancts/modules/vulkan/deqp-vk --deqp-case={testgroup_name}* --deqp-log-filename=./result.qpa > stdout_stderr.log 2>&1;
-    echo "";
-    echo "Test execution completed!";
-    echo "Results saved in: {run_folder}";
-    echo "Press Enter to close this terminal...";
-    read;
+    echo "Creating run folder..."
+    mkdir -p {run_folder}
+    cd {run_folder}
+    echo "Running tests in $(pwd)..."
+    {workfolder}/VK-GL-CTS/build/external/vulkancts/modules/vulkan/deqp-vk --deqp-case={testgroup_name}* --deqp-log-filename=./result.qpa > stdout_stderr.log 2>&1
+    echo ""
+    echo "Test execution completed!"
+    echo "Results saved in: {run_folder}"
+    echo "Press Enter to close this terminal..."
+    read
 '
 """
+
+        script_file = f"{script_dir}/run_subgroup_{actual_idx:03d}_{folder_name}.sh"
+        with open(script_file, 'w') as f:
+            f.write(bash_script)
+        os.chmod(script_file, 0o755)
 
         subprocess.Popen([
             'xfce4-terminal',
             '--disable-server',
             '--hold',
             '-e',
-            f'bash -c {repr(bash_script)}'
+            script_file
         ])
 
     print(f"\nLaunched {len(filtered_subgroups)} terminals successfully!")
+    print(f"Script files saved in: {script_dir}")
 
 
 def main():
