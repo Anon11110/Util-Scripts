@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Generate commands to run dEQP test subgroups in Linux terminals.
+Run dEQP test subgroups in Linux terminals.
 For each subgroup, runs only the first 5 tests if the subgroup has more than 5 tests.
 """
 
 import sys
 import os
+import subprocess
 from typing import Dict, List
 
 
@@ -58,10 +59,10 @@ def sanitize_folder_name(testgroup_name: str) -> str:
     return short_name.replace('.', '_')
 
 
-def generate_run_script(subgroups: Dict[str, int], workfolder: str, max_tests_per_group: int = 5,
-                        subgroup_filter: str = "all", subgroup_range: str = None):
+def launch_terminals(subgroups: Dict[str, int], workfolder: str, max_tests_per_group: int = 5,
+                     subgroup_filter: str = "all", subgroup_range: str = None):
     """
-    Generate a shell script that launches terminals for each test subgroup.
+    Launch terminals for each test subgroup.
 
     Args:
         subgroups: Dictionary of test subgroups
@@ -70,15 +71,6 @@ def generate_run_script(subgroups: Dict[str, int], workfolder: str, max_tests_pe
         subgroup_filter: Filter for subgroups - "all", "first-half", "second-half"
         subgroup_range: Custom range like "1-10" or "5-15"
     """
-    print("#!/bin/bash")
-    print()
-    print("# Auto-generated script to run dEQP test subgroups")
-    print(f"# Work folder: {workfolder}")
-    print(f"# Max tests per subgroup: {max_tests_per_group}")
-    print()
-    print("WORKFOLDER=\"{}\"".format(workfolder))
-    print()
-
     sorted_subgroups = sorted(subgroups.items())
     total_subgroups = len(sorted_subgroups)
 
@@ -88,50 +80,61 @@ def generate_run_script(subgroups: Dict[str, int], workfolder: str, max_tests_pe
             start_idx = max(0, start - 1)
             end_idx = min(total_subgroups, end)
             filtered_subgroups = sorted_subgroups[start_idx:end_idx]
-            print(f"# Running subgroups {start}-{end} (of {total_subgroups} total)")
+            print(f"Running subgroups {start}-{end} (of {total_subgroups} total)")
         except ValueError:
-            print(f"# Error: Invalid range format '{subgroup_range}'. Expected format: '1-10'", file=sys.stderr)
+            print(f"Error: Invalid range format '{subgroup_range}'. Expected format: '1-10'", file=sys.stderr)
             sys.exit(1)
     elif subgroup_filter == "first-half":
         mid_point = (total_subgroups + 1) // 2
         filtered_subgroups = sorted_subgroups[:mid_point]
-        print(f"# Running first half: subgroups 1-{mid_point} (of {total_subgroups} total)")
+        print(f"Running first half: subgroups 1-{mid_point} (of {total_subgroups} total)")
     elif subgroup_filter == "second-half":
         mid_point = (total_subgroups + 1) // 2
         filtered_subgroups = sorted_subgroups[mid_point:]
-        print(f"# Running second half: subgroups {mid_point + 1}-{total_subgroups} (of {total_subgroups} total)")
+        print(f"Running second half: subgroups {mid_point + 1}-{total_subgroups} (of {total_subgroups} total)")
     else:
         filtered_subgroups = sorted_subgroups
-        print(f"# Running all subgroups: {total_subgroups}")
+        print(f"Running all subgroups: {total_subgroups}")
 
     print()
 
     for idx, (testgroup_name, test_count) in enumerate(filtered_subgroups, 1):
         folder_name = sanitize_folder_name(testgroup_name)
-        run_folder = f"$WORKFOLDER/run/vkcts_{folder_name}"
+        run_folder = f"{workfolder}/run/vkcts_{folder_name}"
 
         tests_to_run = min(test_count, max_tests_per_group) if test_count > max_tests_per_group else test_count
         actual_idx = sorted_subgroups.index((testgroup_name, test_count)) + 1
-        print(f"# Subgroup {actual_idx}/{total_subgroups}: {testgroup_name} ({tests_to_run}/{test_count} tests)")
-        print(f"xfce4-terminal --disable-server --hold -e 'bash -c \"")
-        print(f"    echo \\\"Running test subgroup: {testgroup_name}\\\";")
-        print(f"    echo \\\"Tests to run: {tests_to_run}/{test_count}\\\";")
-        print(f"    echo \\\"\\\";")
-        print(f"    echo \\\"Launching B2 node...\\\";")
-        print(f"    phd run -R rhel8 -I bash -c \\\\\\\"")
-        print(f"        echo \\\\\\\\\\\\\\\"Creating run folder...\\\\\\\\\\\\\\\";")
-        print(f"        mkdir -p {run_folder};")
-        print(f"        cd {run_folder};")
-        print(f"        echo \\\\\\\\\\\\\\\"Running tests in \\\\\\\\$(pwd)...\\\\\\\\\\\\\\\";")
-        print(f"        \\\\\\$WORKFOLDER/VK-GL-CTS/build/external/vulkancts/modules/vulkan/deqp-vk --deqp-case={testgroup_name}* --deqp-log-filename=./result.qpa > stdout_stderr.log 2>&1;")
-        print(f"        echo \\\\\\\\\\\\\\\"\\\\\\\\\\\\\\\";")
-        print(f"        echo \\\\\\\\\\\\\\\"Test execution completed!\\\\\\\\\\\\\\\";")
-        print(f"        echo \\\\\\\\\\\\\\\"Results saved in: {run_folder}\\\\\\\\\\\\\\\";")
-        print(f"        echo \\\\\\\\\\\\\\\"Press Enter to close this terminal...\\\\\\\\\\\\\\\";")
-        print(f"        read;")
-        print(f"    \\\\\\\";")
-        print(f"\"'")
-        print()
+
+        print(f"Launching terminal {actual_idx}/{total_subgroups}: {testgroup_name} ({tests_to_run}/{test_count} tests)")
+
+        bash_script = f"""
+echo "Running test subgroup: {testgroup_name}";
+echo "Tests to run: {tests_to_run}/{test_count}";
+echo "";
+echo "Launching B2 node...";
+phd run -R rhel8 -I bash -c '
+    echo "Creating run folder...";
+    mkdir -p {run_folder};
+    cd {run_folder};
+    echo "Running tests in $(pwd)...";
+    {workfolder}/VK-GL-CTS/build/external/vulkancts/modules/vulkan/deqp-vk --deqp-case={testgroup_name}* --deqp-log-filename=./result.qpa > stdout_stderr.log 2>&1;
+    echo "";
+    echo "Test execution completed!";
+    echo "Results saved in: {run_folder}";
+    echo "Press Enter to close this terminal...";
+    read;
+'
+"""
+
+        subprocess.Popen([
+            'xfce4-terminal',
+            '--disable-server',
+            '--hold',
+            '-e',
+            f'bash -c {repr(bash_script)}'
+        ])
+
+    print(f"\nLaunched {len(filtered_subgroups)} terminals successfully!")
 
 
 def main():
@@ -182,7 +185,7 @@ def main():
         sys.exit(1)
 
     subgroups = split_tests_into_subgroups(tests, threshold)
-    generate_run_script(subgroups, workfolder, max_tests_per_group, subgroup_filter, subgroup_range)
+    launch_terminals(subgroups, workfolder, max_tests_per_group, subgroup_filter, subgroup_range)
 
 
 if __name__ == "__main__":
