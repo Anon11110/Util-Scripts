@@ -37,33 +37,26 @@ def split_tests_into_subgroups(tests: List[str], threshold: int) -> Dict[str, in
     processed = set()
 
     for test in tests:
-        # Skip if this test already belongs to a processed subgroup
         if any(test.startswith(prefix + '.') for prefix in processed):
             continue
 
-        # Start from 4 dots (after dEQP-VK.ray_tracing_pipeline.acceleration_structures)
-        # Try increasing number of dots until we find a subgroup small enough
         found = False
 
         for dot_count in range(4, test.count('.') + 2):
             prefix = get_prefix(test, dot_count)
 
-            # Skip if already processed
             if prefix in processed:
                 found = True
                 break
 
-            # Count tests with this prefix
             count = count_tests_with_prefix(tests, prefix)
 
             if count <= threshold:
-                # This prefix has acceptable number of tests
                 subgroups[prefix] = count
                 processed.add(prefix)
                 found = True
                 break
 
-        # If we couldn't find a small enough subgroup, use the full test name
         if not found:
             subgroups[test] = 1
             processed.add(test)
@@ -72,7 +65,6 @@ def split_tests_into_subgroups(tests: List[str], threshold: int) -> Dict[str, in
 
 
 def main():
-    # Parse command line arguments
     if len(sys.argv) < 2:
         print("Usage: python split_tests.py <input_file> [threshold]")
         print("  input_file: Path to the file containing test names")
@@ -90,7 +82,6 @@ def main():
     print("=" * 80)
     print()
 
-    # Read all tests
     try:
         with open(input_file, 'r') as f:
             tests = [line.strip() for line in f if line.strip()]
@@ -102,21 +93,17 @@ def main():
     print(f"Total tests to split: {total_tests}")
     print()
 
-    # Split into subgroups
     subgroups = split_tests_into_subgroups(tests, threshold)
 
-    # Display results
     print("=" * 80)
     print("Subgroup Statistics")
     print("=" * 80)
     print()
 
-    # Sort by prefix name and display
     for prefix in sorted(subgroups.keys()):
         count = subgroups[prefix]
         print(f"{prefix:<120} : {count:>5} tests")
 
-    # Calculate statistics
     counts = list(subgroups.values())
     total_subgroups = len(subgroups)
     total_tests_counted = sum(counts)
